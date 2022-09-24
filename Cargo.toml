@@ -13,4 +13,5 @@ indoc = "1.0.7"
 semver = "1.0.14"
 serde = { version = "1.0.145", features = ["derive"] }
 serde_json = "1.0.85"
+time = { version = "0.3.14", features = ["std", "formatting"] }
 toml_edit = "0.14.4"

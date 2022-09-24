@@ -1,12 +1,14 @@
+use bat::PrettyPrinter;
+use clap::{Args, Parser, Subcommand};
+use semver::{Op, Version, VersionReq};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::fs::write;
-use semver::{Version, VersionReq, Op};
 use toml_edit::{Document, Item};
-use bat::PrettyPrinter;
-use clap::{Args, Parser, Subcommand};
 
+mod git;
 mod start;
+mod state;
 
 #[derive(Parser)]
 struct App {
@@ -42,7 +44,7 @@ fn main() -> Result<(), anyhow::Error> {
         Commands::Status => todo!(),
         Commands::Start => {
             start::run()?;
-        },
+        }
         Commands::Continue => todo!(),
         Commands::Abort => todo!(),
     };
@@ -66,7 +68,6 @@ fn run_merge(opts: MergeOpts) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-
 pub fn merge(local: &str, remote: &str) -> String {
     let local_deps = extract_deps(local);
     let remote_deps = extract_deps(remote);
@@ -82,13 +83,15 @@ pub fn merge(local: &str, remote: &str) -> String {
 
         let dep = dep.clone();
         match (local, remote) {
-            (None, None) => unreachable!("Found dependency that is neither local nor remote? {dep}"),
+            (None, None) => {
+                unreachable!("Found dependency that is neither local nor remote? {dep}")
+            }
             (None, Some(remote)) => {
                 max.insert(dep, remote.clone());
-            },
+            }
             (Some(local), None) => {
                 max.insert(dep, local.clone());
-            },
+            }
             (Some(local), Some(remote)) => {
                 if local.version > remote.version {
                     max.insert(dep, local.clone());
@@ -101,7 +104,7 @@ pub fn merge(local: &str, remote: &str) -> String {
 
     let mut final_toml = local.parse::<Document>().expect("foo?");
     replace_deps(&mut final_toml, max);
-    
+
     final_toml.to_string()
 }
 
@@ -116,7 +119,14 @@ fn replace_deps(toml: &mut toml_edit::Document, deps: BTreeMap<String, Dependenc
 fn extract_deps(raw: &str) -> BTreeMap<String, Dependency> {
     let remote_toml = raw.parse::<Document>().expect("foo?");
     let mut deps = BTreeMap::new();
-    for (name, item) in remote_toml.as_table().get("dependencies").unwrap().as_table().unwrap().iter() {
+    for (name, item) in remote_toml
+        .as_table()
+        .get("dependencies")
+        .unwrap()
+        .as_table()
+        .unwrap()
+        .iter()
+    {
         let dep = parse_dependency(&name, &item);
         deps.insert(dep.name.clone(), dep);
     }
@@ -126,17 +136,25 @@ fn extract_deps(raw: &str) -> BTreeMap<String, Dependency> {
 fn parse_dependency(name: &str, item: &Item) -> Dependency {
     let version = match item {
         Item::Value(toml_edit::Value::String(version)) => version.clone().into_value(),
-        Item::Value(toml_edit::Value::InlineTable(table)) => table.get("version").unwrap().as_str().unwrap().to_string(),
+        Item::Value(toml_edit::Value::InlineTable(table)) => {
+            table.get("version").unwrap().as_str().unwrap().to_string()
+        }
         _ => todo!("Random goo"),
     };
 
     let version = if let Ok(v) = Version::parse(&version) {
         Ver::Exact(v)
     } else {
-        VersionReq::parse(&version).map(Ver::Range).expect("Should have been a VersionReq")
+        VersionReq::parse(&version)
+            .map(Ver::Range)
+            .expect("Should have been a VersionReq")
     };
 
-    Dependency { name: name.to_string(), version, toml_item: item.clone() }
+    Dependency {
+        name: name.to_string(),
+        version,
+        toml_item: item.clone(),
+    }
 }
 
 #[derive(Debug, Clone, Eq)]
@@ -150,7 +168,7 @@ impl PartialEq for Ver {
         match (self, other) {
             (Self::Exact(l0), Self::Exact(r0)) => l0 == r0,
             (Self::Range(l0), Self::Range(r0)) => l0 == r0,
-            _ => false
+            _ => false,
         }
     }
 }
@@ -165,14 +183,14 @@ impl PartialOrd for Ver {
                 } else {
                     Some(Ordering::Less)
                 }
-            },
+            }
             (Ver::Range(range), Ver::Exact(v)) => {
                 if range.matches(v) {
                     Some(Ordering::Less)
                 } else {
                     Some(Ordering::Greater)
                 }
-            },
+            }
             (Ver::Range(this), Ver::Range(other)) => {
                 if this.comparators.len() != 1 || other.comparators.len() != 1 {
                     // 🤷 no idea what to do in this case
@@ -188,17 +206,17 @@ impl PartialOrd for Ver {
                 }
 
                 match this.major.cmp(&other.major) {
-                    Ordering::Equal => {},
+                    Ordering::Equal => {}
                     other => return Some(other),
                 };
 
                 match this.minor.unwrap_or(0).cmp(&other.minor.unwrap_or(0)) {
-                    Ordering::Equal => {},
+                    Ordering::Equal => {}
                     other => return Some(other),
                 };
 
                 match this.patch.unwrap_or(0).cmp(&other.patch.unwrap_or(0)) {
-                    Ordering::Equal => {},
+                    Ordering::Equal => {}
                     other => return Some(other),
                 };
 
@@ -208,7 +226,6 @@ impl PartialOrd for Ver {
         }
     }
 }
-
 
 #[derive(Debug, Clone)]
 struct Dependency {

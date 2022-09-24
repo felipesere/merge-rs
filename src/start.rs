@@ -3,9 +3,17 @@ use std::process::Command;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
+use crate::git;
+
 pub fn run() -> Result<(), anyhow::Error> {
     let prs = get_renovate_prs()?;
-    dbg!(&prs);
+    let current_sha = git::current_git_sha()?;
+    git::create_new_branch()?;
+    let state =
+        crate::state::initial_state(prs, current_sha).context("Could not great initial state")?;
+
+    for pr in state.prs.possible_prs {}
+
     Ok(())
 }
 
@@ -35,10 +43,10 @@ enum CiState {
     Success,
 }
 
-#[derive(Debug)]
-struct Prs {
-    ci_failures: Vec<String>,
-    possible_prs: Vec<String>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Prs {
+    pub ci_failures: Vec<String>,
+    pub possible_prs: Vec<String>,
 }
 
 fn get_renovate_prs() -> Result<Prs, anyhow::Error> {
