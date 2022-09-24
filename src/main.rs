@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use std::fs::write;
 use toml_edit::{Document, Item};
 
+mod abort;
 mod git;
 mod start;
 mod state;
@@ -46,7 +47,9 @@ fn main() -> Result<(), anyhow::Error> {
             start::run()?;
         }
         Commands::Continue => todo!(),
-        Commands::Abort => todo!(),
+        Commands::Abort => {
+            abort::run()?;
+        }
     };
 
     Ok(())

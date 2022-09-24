@@ -8,11 +8,30 @@ use crate::git;
 pub fn run() -> Result<(), anyhow::Error> {
     let prs = get_renovate_prs()?;
     let current_sha = git::current_git_sha()?;
-    git::create_new_branch()?;
     let state =
         crate::state::initial_state(prs, current_sha).context("Could not great initial state")?;
+    git::create_new_branch()?;
 
-    for pr in state.prs.possible_prs {}
+    for pr in state.prs.possible_prs {
+        let copy = pr.clone();
+        crate::state::update_state(|mut state| {
+            state.current_pr = Some(copy);
+            state
+        })?;
+        let outcome = git::simple_merge(&pr);
+        if outcome.is_ok() {
+            crate::state::update_state(|mut state| {
+                state.succeeded_to_merge.push(pr.clone());
+                state
+            })?;
+        } else {
+            git::abort_merge()?;
+            crate::state::update_state(|mut state| {
+                state.failed_to_merge.push(pr.clone());
+                state
+            })?;
+        }
+    }
 
     Ok(())
 }
