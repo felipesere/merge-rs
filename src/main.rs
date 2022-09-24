@@ -4,8 +4,9 @@ use std::fs::write;
 use semver::{Version, VersionReq, Op};
 use toml_edit::{Document, Item};
 use bat::PrettyPrinter;
-
 use clap::{Args, Parser, Subcommand};
+
+mod start;
 
 #[derive(Parser)]
 struct App {
@@ -39,7 +40,9 @@ fn main() -> Result<(), anyhow::Error> {
     match app.cmd {
         Commands::AutoMerge(opts) => run_merge(opts)?,
         Commands::Status => todo!(),
-        Commands::Start => todo!(),
+        Commands::Start => {
+            start::run()?;
+        },
         Commands::Continue => todo!(),
         Commands::Abort => todo!(),
     };

@@ -647,6 +647,8 @@ dependencies = [
  "clap",
  "indoc",
  "semver",
+ "serde",
+ "serde_json",
  "toml_edit",
 ]
 
