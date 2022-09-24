@@ -3,17 +3,25 @@ use std::collections::BTreeMap;
 use std::fs::write;
 use semver::{Version, VersionReq, Op};
 use toml_edit::{Document, Item};
+use bat::PrettyPrinter;
 
 fn main() {
     let local_filename = std::env::var("LOCAL").expect("did not have $LOCAL environment variable");
     let remote_filename = std::env::var("REMOTE").expect("did not have $REMOTE environment variable");
     let merged_filename = std::env::var("MERGED").expect("did not have $MERGED environment variable");
+
     let local_content = std::fs::read_to_string(local_filename).expect("Could not read local file");
     let remote_content = std::fs::read_to_string(remote_filename).expect("Could not read remote file");
 
     let result = merge(&local_content, &remote_content);
 
-    write(merged_filename, &result[..]).expect("Failed to write");
+    write(merged_filename, result.as_bytes()).expect("Failed to write");
+
+    PrettyPrinter::new()
+        .input_from_bytes(result.as_bytes())
+        .language("toml")
+        .print()
+        .unwrap();
 }
 
 pub fn merge(local: &str, remote: &str) -> String {

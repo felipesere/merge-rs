@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+bat = "0.22.1"
 indoc = "1.0.7"
 semver = "1.0.14"
 toml_edit = "0.14.4"
