@@ -5,24 +5,64 @@ use semver::{Version, VersionReq, Op};
 use toml_edit::{Document, Item};
 use bat::PrettyPrinter;
 
-fn main() {
-    let local_filename = std::env::var("LOCAL").expect("did not have $LOCAL environment variable");
-    let remote_filename = std::env::var("REMOTE").expect("did not have $REMOTE environment variable");
-    let merged_filename = std::env::var("MERGED").expect("did not have $MERGED environment variable");
+use clap::{Args, Parser, Subcommand};
 
-    let local_content = std::fs::read_to_string(local_filename).expect("Could not read local file");
-    let remote_content = std::fs::read_to_string(remote_filename).expect("Could not read remote file");
+#[derive(Parser)]
+struct App {
+    #[clap(subcommand)]
+    cmd: Commands,
+}
+
+#[derive(Args)]
+struct MergeOpts {
+    local: String,
+    remote: String,
+    merged: String,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Check the status of auto-merging
+    Status,
+    /// Start auto-merging renovate PRs
+    Start,
+    // Continue with auto-merging after a conflict was resolved
+    Continue,
+    /// Abort auto-merge and go back to previous git
+    Abort,
+    /// Use this tool to attempt to auto-merge Cargo.toml conflicts
+    AutoMerge(MergeOpts),
+}
+
+fn main() -> Result<(), anyhow::Error> {
+    let app = App::parse();
+    match app.cmd {
+        Commands::AutoMerge(opts) => run_merge(opts)?,
+        Commands::Status => todo!(),
+        Commands::Start => todo!(),
+        Commands::Continue => todo!(),
+        Commands::Abort => todo!(),
+    };
+
+    Ok(())
+}
+
+fn run_merge(opts: MergeOpts) -> Result<(), anyhow::Error> {
+    let local_content = std::fs::read_to_string(opts.local).expect("Could not read local file");
+    let remote_content = std::fs::read_to_string(opts.remote).expect("Could not read remote file");
 
     let result = merge(&local_content, &remote_content);
 
-    write(merged_filename, result.as_bytes()).expect("Failed to write");
+    write(opts.merged, result.as_bytes()).expect("Failed to write");
 
     PrettyPrinter::new()
         .input_from_bytes(result.as_bytes())
         .language("toml")
         .print()
         .unwrap();
+    Ok(())
 }
+
 
 pub fn merge(local: &str, remote: &str) -> String {
     let local_deps = extract_deps(local);
