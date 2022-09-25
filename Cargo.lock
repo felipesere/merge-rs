@@ -645,6 +645,7 @@ dependencies = [
  "anyhow",
  "bat",
  "clap",
+ "glob",
  "indoc",
  "semver",
  "serde",

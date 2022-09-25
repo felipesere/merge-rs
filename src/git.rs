@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::process::Command;
 
 use anyhow::{anyhow, Context};
@@ -98,5 +99,71 @@ pub fn abort_merge() -> Result<(), anyhow::Error> {
         Ok(())
     } else {
         anyhow::bail!("Failed to abort merge")
+    }
+}
+
+pub fn try_mergetool() -> Result<(), anyhow::Error> {
+    let o = Command::new("git")
+        .args(&["mergetool", "--tool", "merge-rs"])
+        .status()
+        .context("failed to get current git")?;
+
+    if o.code() == Some(0) {
+        Ok(())
+    } else {
+        anyhow::bail!("Failed to abort merge")
+    }
+}
+
+pub fn merge_continue() -> Result<(), anyhow::Error> {
+    let o = Command::new("git")
+        .args(&["merge", "--continue"])
+        .env("GIT_EDITOR", "true")
+        .status()
+        .context("failed to get current git")?;
+
+    if o.code() == Some(0) {
+        Ok(())
+    } else {
+        anyhow::bail!("Failed to continue merge")
+    }
+}
+
+pub fn delete_branch(current_branch: &str) -> Result<(), anyhow::Error> {
+    let o = Command::new("git")
+        .args(&["branch", "-D", current_branch])
+        .status()
+        .context("failed to get current git")?;
+
+    if o.code() == Some(0) {
+        Ok(())
+    } else {
+        anyhow::bail!("Failed to delete branch")
+    }
+}
+
+pub fn checkout_theirs(file: &Path) -> Result<(), anyhow::Error> {
+    let o = Command::new("git")
+        .args(&["checkout", "--theirs", file.to_str().unwrap()])
+        .status()
+        .context("failed to get current git")?;
+
+    if o.code() == Some(0) {
+        Ok(())
+    } else {
+        anyhow::bail!("Failed to delete branch")
+    }
+}
+
+pub fn add(file: &std::path::Path) -> Result<(), anyhow::Error> {
+    let o = Command::new("git")
+        .args(&["add", file.to_str().unwrap()])
+        .status()
+        .context("failed to get current git")?;
+
+    if o.code() == Some(0) {
+        Ok(())
+    } else {
+        anyhow::bail!("Failed to add file")
     }
 }

@@ -3,7 +3,7 @@ use std::process::Command;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
-use crate::git;
+use crate::{git, cargo};
 
 pub fn run() -> Result<(), anyhow::Error> {
     let prs = get_renovate_prs()?;
@@ -19,18 +19,30 @@ pub fn run() -> Result<(), anyhow::Error> {
             state
         })?;
         let outcome = git::simple_merge(&pr);
-        if outcome.is_ok() {
-            crate::state::update_state(|mut state| {
-                state.succeeded_to_merge.push(pr.clone());
-                state
-            })?;
-        } else {
-            git::abort_merge()?;
-            crate::state::update_state(|mut state| {
-                state.failed_to_merge.push(pr.clone());
-                state
-            })?;
+        if outcome.is_err() {
+            if git::try_mergetool().is_ok() {
+                for lock_file in glob::glob("**/Cargo.lock").expect("Failed to read the glob pattern") {
+                    let lock_file = lock_file.expect("To have a file");
+                    if lock_file.is_file() {
+                        git::checkout_theirs(&lock_file)?;
+                        git::add(&lock_file)?;
+                    }
+                }
+                git::merge_continue()?;
+                cargo::build()?;
+            } else {
+                git::abort_merge()?;
+                crate::state::update_state(|mut state| {
+                    state.failed_to_merge.push(pr.clone());
+                    state
+                })?;
+                continue;
+            }
         }
+        crate::state::update_state(|mut state| {
+            state.succeeded_to_merge.push(pr.clone());
+            state
+        })?;
     }
 
     Ok(())

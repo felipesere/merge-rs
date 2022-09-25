@@ -10,6 +10,7 @@ mod abort;
 mod git;
 mod start;
 mod state;
+mod cargo;
 
 #[derive(Parser)]
 struct App {
@@ -138,19 +139,27 @@ fn extract_deps(raw: &str) -> BTreeMap<String, Dependency> {
 
 fn parse_dependency(name: &str, item: &Item) -> Dependency {
     let version = match item {
-        Item::Value(toml_edit::Value::String(version)) => version.clone().into_value(),
+        Item::Value(toml_edit::Value::String(version)) => Some(version.clone().into_value()),
         Item::Value(toml_edit::Value::InlineTable(table)) => {
-            table.get("version").unwrap().as_str().unwrap().to_string()
+            if let Some(version) = table.get("version") {
+                Some(version.as_str().unwrap().to_string())
+            } else {
+                None
+            }
         }
         _ => todo!("Random goo"),
     };
 
-    let version = if let Ok(v) = Version::parse(&version) {
-        Ver::Exact(v)
+    let version = if let Some(version) = version {
+        if let Ok(v) = Version::parse(&version) {
+            Ver::Exact(v)
+        } else {
+            VersionReq::parse(&version)
+                .map(Ver::Range)
+                .expect("Should have been a VersionReq")
+        }
     } else {
-        VersionReq::parse(&version)
-            .map(Ver::Range)
-            .expect("Should have been a VersionReq")
+        Ver::Versionless
     };
 
     Dependency {
@@ -164,6 +173,7 @@ fn parse_dependency(name: &str, item: &Item) -> Dependency {
 enum Ver {
     Exact(Version),
     Range(VersionReq),
+    Versionless,
 }
 
 impl PartialEq for Ver {
@@ -179,6 +189,7 @@ impl PartialEq for Ver {
 impl PartialOrd for Ver {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
+            (Ver::Versionless, _ ) | (_, Ver::Versionless) => None,
             (Ver::Exact(v1), Ver::Exact(v2)) => v1.partial_cmp(v2),
             (Ver::Exact(v), Ver::Range(range)) => {
                 if range.matches(v) {
