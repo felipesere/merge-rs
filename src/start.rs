@@ -3,25 +3,35 @@ use std::process::Command;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
-use crate::{git, cargo};
+use crate::{cargo, git, state};
 
 pub fn run() -> Result<(), anyhow::Error> {
     let prs = get_renovate_prs()?;
     let current_sha = git::current_git_sha()?;
-    let state =
-        crate::state::initial_state(prs, current_sha).context("Could not great initial state")?;
+    let state = state::initial_state(prs, current_sha).context("Could not great initial state")?;
     git::create_new_branch()?;
+    merge_prs(&state.prs.possible_prs)?;
+    state::update_state(|mut state| {
+        state.current_pr = None;
+        state
+    })?;
 
-    for pr in state.prs.possible_prs {
+    Ok(())
+}
+
+pub fn merge_prs(prs: &[String]) -> Result<(), anyhow::Error> {
+    for pr in prs {
         let copy = pr.clone();
-        crate::state::update_state(|mut state| {
+        state::update_state(|mut state| {
             state.current_pr = Some(copy);
             state
         })?;
         let outcome = git::simple_merge(&pr);
         if outcome.is_err() {
             if git::try_mergetool().is_ok() {
-                for lock_file in glob::glob("**/Cargo.lock").expect("Failed to read the glob pattern") {
+                for lock_file in
+                    glob::glob("**/Cargo.lock").expect("Failed to read the glob pattern")
+                {
                     let lock_file = lock_file.expect("To have a file");
                     if lock_file.is_file() {
                         git::checkout_theirs(&lock_file)?;
@@ -32,14 +42,14 @@ pub fn run() -> Result<(), anyhow::Error> {
                 cargo::build()?;
             } else {
                 git::abort_merge()?;
-                crate::state::update_state(|mut state| {
+                state::update_state(|mut state| {
                     state.failed_to_merge.push(pr.clone());
                     state
                 })?;
                 continue;
             }
         }
-        crate::state::update_state(|mut state| {
+        state::update_state(|mut state| {
             state.succeeded_to_merge.push(pr.clone());
             state
         })?;

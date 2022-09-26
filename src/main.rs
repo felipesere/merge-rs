@@ -7,10 +7,12 @@ use std::fs::write;
 use toml_edit::{Document, Item};
 
 mod abort;
+mod cargo;
+mod continue_merging;
 mod git;
 mod start;
 mod state;
-mod cargo;
+mod status;
 
 #[derive(Parser)]
 struct App {
@@ -43,14 +45,10 @@ fn main() -> Result<(), anyhow::Error> {
     let app = App::parse();
     match app.cmd {
         Commands::AutoMerge(opts) => run_merge(opts)?,
-        Commands::Status => todo!(),
-        Commands::Start => {
-            start::run()?;
-        }
-        Commands::Continue => todo!(),
-        Commands::Abort => {
-            abort::run()?;
-        }
+        Commands::Status => status::run()?,
+        Commands::Start => start::run()?,
+        Commands::Continue => continue_merging::run()?,
+        Commands::Abort => abort::run()?,
     };
 
     Ok(())
@@ -121,9 +119,9 @@ fn replace_deps(toml: &mut toml_edit::Document, deps: BTreeMap<String, Dependenc
 }
 
 fn extract_deps(raw: &str) -> BTreeMap<String, Dependency> {
-    let remote_toml = raw.parse::<Document>().expect("foo?");
+    let doc = raw.parse::<Document>().expect("foo?");
     let mut deps = BTreeMap::new();
-    for (name, item) in remote_toml
+    for (name, item) in doc
         .as_table()
         .get("dependencies")
         .unwrap()
@@ -189,7 +187,7 @@ impl PartialEq for Ver {
 impl PartialOrd for Ver {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
-            (Ver::Versionless, _ ) | (_, Ver::Versionless) => None,
+            (Ver::Versionless, _) | (_, Ver::Versionless) => None,
             (Ver::Exact(v1), Ver::Exact(v2)) => v1.partial_cmp(v2),
             (Ver::Exact(v), Ver::Range(range)) => {
                 if range.matches(v) {
